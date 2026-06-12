@@ -1,0 +1,10 @@
+---
+import Layout from './Layout.astro';
+interface Props { title?: string }
+const { title } = Astro.props;
+---
+<Layout title={title}>
+  <div class="h-screen flex overflow-hidden">
+    <slot />
+  </div>
+</Layout>

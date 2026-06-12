@@ -1,0 +1,30 @@
+---
+interface Props { user: { name: string; email: string; avatar: string } }
+const { user } = Astro.props;
+---
+<div class="bg-card border border-border rounded-xl p-6 max-w-md mx-auto">
+  <div class="flex flex-col items-center">
+    <div class="relative group">
+      {user.avatar
+        ? <img src={user.avatar} alt="Avatar" class="w-24 h-24 rounded-full object-cover" id="profile-avatar-img" />
+        : <div id="profile-avatar-placeholder" class="w-24 h-24 rounded-full bg-elevated flex items-center justify-center text-2xl font-bold">{user.name[0].toUpperCase()}</div>
+      }
+      <label class="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        <input type="file" accept="image/*" id="avatar-upload" class="hidden" />
+      </label>
+    </div>
+    <form id="profile-form" class="mt-6 w-full space-y-4">
+      <div>
+        <label class="text-sm text-muted block mb-1">Name</label>
+        <input type="text" name="name" value={user.name} class="w-full bg-elevated border border-border rounded-lg px-4 py-2 text-sm text-text focus:outline-none focus:border-accent" />
+      </div>
+      <div>
+        <label class="text-sm text-muted block mb-1">Email</label>
+        <input type="email" value={user.email} disabled class="w-full bg-elevated border border-border rounded-lg px-4 py-2 text-sm text-disabled cursor-not-allowed" />
+      </div>
+      <button type="submit" class="w-full bg-accent hover:bg-accent-hover text-white font-medium py-2.5 rounded-lg transition-colors">Save Changes</button>
+    </form>
+    <a href="/api/auth/logout" class="mt-4 text-sm text-muted hover:text-accent transition-colors">Log out</a>
+  </div>
+</div>

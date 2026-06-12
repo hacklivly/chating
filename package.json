@@ -1,17 +1,28 @@
 {
-  "name": "again-fu",
+  "name": "chating",
   "type": "module",
-  "version": "0.0.1",
-  "engines": {
-    "node": ">=22.12.0"
-  },
+  "version": "1.0.0",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview",
-    "astro": "astro"
+    "preview": "astro preview"
   },
   "dependencies": {
-    "astro": "^6.4.6"
+    "@astrojs/check": "^0.9.9",
+    "@astrojs/node": "^10.1.4",
+    "@tailwindcss/vite": "^4.1.8",
+    "astro": "^6.4.6",
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.5.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.9.5",
+    "simple-peer": "^9.11.1",
+    "tailwindcss": "^4.1.8",
+    "typescript": "^6.0.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/simple-peer": "^9.11.8"
   }
 }

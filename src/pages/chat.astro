@@ -1,0 +1,566 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getUserIdFromCookies } from '../lib/auth';
+import { connectDB } from '../lib/db';
+import { User } from '../models/User';
+export const prerender = false;
+
+const userId = getUserIdFromCookies(Astro.cookies);
+if (!userId) return Astro.redirect('/login');
+
+await connectDB();
+const currentUser = await User.findById(userId).select('-password').lean() as any;
+if (!currentUser) return Astro.redirect('/login');
+---
+<Layout title="Chat">
+  <div class="h-dvh flex bg-bg overflow-hidden" id="app">
+    <!-- Mobile overlay -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-black/60 z-30 hidden lg:hidden"></div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-40 w-80 bg-surface border-r border-border flex flex-col transform -translate-x-full lg:translate-x-0 transition-transform">
+      <!-- Sidebar header -->
+      <div class="h-14 flex items-center justify-between px-4 border-b border-border shrink-0">
+        <h2 class="font-semibold text-text text-lg">Chats</h2>
+        <div class="flex items-center gap-2">
+          <a href="/profile" class="w-8 h-8 rounded-full overflow-hidden border border-border-strong">
+            <img src={currentUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}&background=fa520f&color=fff&size=32`} alt="" class="w-full h-full object-cover" />
+          </a>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="p-3 border-b border-border">
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dim" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" id="searchInput" placeholder="Search users..."
+            class="w-full h-9 pl-9 pr-3 bg-elevated border border-border-strong rounded-lg text-sm text-text placeholder-text-dim focus:outline-none focus:border-primary transition" />
+        </div>
+      </div>
+
+      <!-- Conversations list -->
+      <div id="convList" class="flex-1 overflow-y-auto">
+        <div id="searchResults" class="hidden"></div>
+        <div id="conversations" class="divide-y divide-border"></div>
+        <div id="emptyState" class="flex flex-col items-center justify-center h-full text-text-dim text-sm p-4">
+          <svg class="w-12 h-12 mb-3 opacity-50" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25z"/></svg>
+          <p>Search for users to start chatting</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main chat area -->
+    <main class="flex-1 flex flex-col min-w-0">
+      <!-- Chat header -->
+      <header id="chatHeader" class="h-14 flex items-center px-4 border-b border-border shrink-0 bg-surface">
+        <button id="menuBtn" class="lg:hidden mr-3 text-text-muted">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <div id="chatUserInfo" class="flex items-center gap-3 flex-1 hidden">
+          <div class="relative">
+            <img id="chatAvatar" src="" alt="" class="w-9 h-9 rounded-full object-cover" />
+            <span id="chatOnline" class="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-surface bg-text-dim"></span>
+          </div>
+          <div class="min-w-0">
+            <p id="chatName" class="font-medium text-text text-sm truncate"></p>
+            <p id="chatStatus" class="text-xs text-text-dim"></p>
+          </div>
+        </div>
+        <div id="chatActions" class="flex items-center gap-2 hidden">
+          <button id="callAudioBtn" class="w-9 h-9 flex items-center justify-center rounded-lg text-text-muted hover:bg-elevated transition" title="Voice call">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg>
+          </button>
+          <button id="callVideoBtn" class="w-9 h-9 flex items-center justify-center rounded-lg text-text-muted hover:bg-elevated transition" title="Video call">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9.75a2.25 2.25 0 0 0 2.25-2.25V7.5a2.25 2.25 0 0 0-2.25-2.25H4.5A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Messages area -->
+      <div id="messagesArea" class="flex-1 overflow-y-auto p-4 space-y-3">
+        <div id="noChatSelected" class="flex flex-col items-center justify-center h-full text-text-dim">
+          <svg class="w-16 h-16 mb-4 opacity-40" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155"/></svg>
+          <p class="text-sm">Select a conversation to start messaging</p>
+        </div>
+      </div>
+
+      <!-- Typing indicator -->
+      <div id="typingIndicator" class="hidden px-4 pb-1">
+        <div class="flex items-center gap-2 text-xs text-text-dim">
+          <div class="flex gap-1">
+            <span class="w-1.5 h-1.5 bg-text-dim rounded-full animate-bounce [animation-delay:0ms]"></span>
+            <span class="w-1.5 h-1.5 bg-text-dim rounded-full animate-bounce [animation-delay:150ms]"></span>
+            <span class="w-1.5 h-1.5 bg-text-dim rounded-full animate-bounce [animation-delay:300ms]"></span>
+          </div>
+          <span>typing...</span>
+        </div>
+      </div>
+
+      <!-- Message input -->
+      <div id="inputArea" class="p-3 border-t border-border bg-surface shrink-0 hidden">
+        <div class="flex items-end gap-2">
+          <button id="attachBtn" class="w-9 h-9 flex items-center justify-center rounded-lg text-text-muted hover:bg-elevated transition shrink-0" title="Attach image">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z"/></svg>
+          </button>
+          <button id="gifBtn" class="w-9 h-9 flex items-center justify-center rounded-lg text-text-muted hover:bg-elevated transition shrink-0" title="Send GIF">
+            <span class="text-xs font-bold">GIF</span>
+          </button>
+          <div class="flex-1 relative">
+            <input type="text" id="msgInput" placeholder="Type a message..."
+              class="w-full h-10 px-4 bg-elevated border border-border-strong rounded-full text-sm text-text placeholder-text-dim focus:outline-none focus:border-primary transition" />
+          </div>
+          <button id="sendBtn" class="w-9 h-9 flex items-center justify-center rounded-full bg-primary text-white shrink-0 hover:bg-primary-deep transition" title="Send">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+        <!-- GIF picker -->
+        <div id="gifPicker" class="hidden mt-2 bg-elevated rounded-lg border border-border-strong p-3 max-h-64 overflow-y-auto">
+          <input type="text" id="gifSearch" placeholder="Search GIFs..."
+            class="w-full h-8 px-3 bg-surface border border-border rounded-md text-sm text-text placeholder-text-dim focus:outline-none focus:border-primary mb-2" />
+          <div id="gifResults" class="grid grid-cols-2 gap-2"></div>
+        </div>
+        <!-- Image preview -->
+        <div id="imagePreview" class="hidden mt-2 relative inline-block">
+          <img id="previewImg" class="max-h-32 rounded-lg" />
+          <button id="cancelImage" class="absolute -top-2 -right-2 w-5 h-5 bg-danger rounded-full text-white text-xs flex items-center justify-center">✕</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Call modal -->
+    <div id="callModal" class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center hidden">
+      <div class="bg-surface rounded-2xl p-8 text-center max-w-sm w-full mx-4">
+        <div id="callInfo">
+          <img id="callAvatar" src="" class="w-20 h-20 rounded-full mx-auto mb-4 object-cover" />
+          <p id="callStatus" class="text-text font-semibold text-lg mb-1"></p>
+          <p id="callSubtext" class="text-text-muted text-sm mb-6"></p>
+        </div>
+        <div id="callVideos" class="hidden relative mb-4">
+          <video id="remoteVideo" class="w-full rounded-lg bg-black" autoplay playsinline></video>
+          <video id="localVideo" class="absolute bottom-2 right-2 w-24 h-32 rounded-lg bg-black object-cover" autoplay playsinline muted></video>
+        </div>
+        <div class="flex justify-center gap-4">
+          <button id="callAcceptBtn" class="hidden w-14 h-14 rounded-full bg-success text-white flex items-center justify-center">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg>
+          </button>
+          <button id="callEndBtn" class="w-14 h-14 rounded-full bg-danger text-white flex items-center justify-center">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 3.75L18 6m0 0l2.25 2.25M18 6l2.25-2.25M18 6l-2.25 2.25m-10.5 7.5h.008v.008H7.5v-.008zm2.25 0h.008v.008H9.75v-.008zm2.25 0h.008v.008H12v-.008zm2.25 0h.008v.008h-.008v-.008zm2.25 0h.008v.008h-.008v-.008zm2.25 0h.008v.008h-.008v-.008z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- File input (hidden) -->
+    <input type="file" id="fileInput" accept="image/*" class="hidden" />
+  </div>
+</Layout>
+
+<script define:vars={{ currentUserId: currentUser._id.toString(), currentUserName: currentUser.name }} is:inline>
+  window.__currentUser = { id: currentUserId, name: currentUserName };
+</script>
+<script>
+  const currentUser = (window as any).__currentUser;
+  let activeChatUser: any = null;
+  let typingTimeout: ReturnType<typeof setTimeout> | null = null;
+  let pendingImage: string | null = null;
+
+  // --- SSE Connection ---
+  const sse = new EventSource('/api/messages/sse');
+  sse.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if (data.type === 'ping' || data.type === 'connected') return;
+
+    if (data.type === 'typing') {
+      handleTypingEvent(data);
+    } else if (data.type === 'call-offer' || data.type === 'call-answer' || data.type === 'signal' || data.type === 'call-end') {
+      handleCallEvent(data);
+    } else if (data.sender || data.receiver) {
+      handleNewMessage(data);
+    }
+  };
+
+  // --- Sidebar toggle ---
+  const sidebar = document.getElementById('sidebar')!;
+  const overlay = document.getElementById('sidebarOverlay')!;
+  document.getElementById('menuBtn')?.addEventListener('click', () => {
+    sidebar.classList.toggle('-translate-x-full');
+    overlay.classList.toggle('hidden');
+  });
+  overlay.addEventListener('click', () => {
+    sidebar.classList.add('-translate-x-full');
+    overlay.classList.add('hidden');
+  });
+
+  // --- Load conversations ---
+  async function loadConversations() {
+    const res = await fetch('/api/conversations');
+    const convs = await res.json();
+    const container = document.getElementById('conversations')!;
+    const emptyState = document.getElementById('emptyState')!;
+
+    if (convs.length === 0) { emptyState.classList.remove('hidden'); return; }
+    emptyState.classList.add('hidden');
+
+    container.innerHTML = convs.map((c: any) => {
+      const other = c.participants.find((p: any) => p._id !== currentUser.id);
+      if (!other) return '';
+      const avatar = other.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(other.name)}&background=fa520f&color=fff&size=40`;
+      return `<button class="w-full flex items-center gap-3 p-3 hover:bg-elevated transition text-left" data-user='${JSON.stringify(other)}'>
+        <div class="relative shrink-0">
+          <img src="${avatar}" class="w-10 h-10 rounded-full object-cover" />
+          <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-surface ${other.online ? 'bg-success' : 'bg-text-dim'}"></span>
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium text-text truncate">${other.name}</p>
+          <p class="text-xs text-text-dim truncate">${c.lastMessage || 'Start a conversation'}</p>
+        </div>
+      </button>`;
+    }).join('');
+
+    container.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const user = JSON.parse(btn.dataset.user!);
+        openChat(user);
+      });
+    });
+  }
+  loadConversations();
+
+  // --- Search users ---
+  let searchTimeout: ReturnType<typeof setTimeout>;
+  document.getElementById('searchInput')?.addEventListener('input', (e) => {
+    const q = (e.target as HTMLInputElement).value.trim();
+    clearTimeout(searchTimeout);
+    if (!q) {
+      document.getElementById('searchResults')!.classList.add('hidden');
+      document.getElementById('conversations')!.classList.remove('hidden');
+      return;
+    }
+    searchTimeout = setTimeout(async () => {
+      const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`);
+      const users = await res.json();
+      const container = document.getElementById('searchResults')!;
+      container.classList.remove('hidden');
+      document.getElementById('conversations')!.classList.add('hidden');
+
+      container.innerHTML = users.map((u: any) => {
+        const avatar = u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=fa520f&color=fff&size=40`;
+        return `<button class="w-full flex items-center gap-3 p-3 hover:bg-elevated transition text-left" data-user='${JSON.stringify(u)}'>
+          <div class="relative shrink-0">
+            <img src="${avatar}" class="w-10 h-10 rounded-full object-cover" />
+            <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-surface ${u.online ? 'bg-success' : 'bg-text-dim'}"></span>
+          </div>
+          <div class="min-w-0">
+            <p class="text-sm font-medium text-text">${u.name}</p>
+            <p class="text-xs text-text-dim">${u.email}</p>
+          </div>
+        </button>`;
+      }).join('') || '<p class="p-4 text-sm text-text-dim">No users found</p>';
+
+      container.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          openChat(JSON.parse(btn.dataset.user!));
+          (document.getElementById('searchInput') as HTMLInputElement).value = '';
+          container.classList.add('hidden');
+          document.getElementById('conversations')!.classList.remove('hidden');
+        });
+      });
+    }, 300);
+  });
+
+  // --- Open chat ---
+  async function openChat(user: any) {
+    activeChatUser = user;
+    // Close mobile sidebar
+    sidebar.classList.add('-translate-x-full');
+    overlay.classList.add('hidden');
+
+    // Update header
+    document.getElementById('chatUserInfo')!.classList.remove('hidden');
+    document.getElementById('chatActions')!.classList.remove('hidden');
+    document.getElementById('inputArea')!.classList.remove('hidden');
+    document.getElementById('noChatSelected')!.classList.add('hidden');
+
+    const avatar = user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=fa520f&color=fff&size=36`;
+    (document.getElementById('chatAvatar') as HTMLImageElement).src = avatar;
+    document.getElementById('chatName')!.textContent = user.name;
+    document.getElementById('chatOnline')!.className = `absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-surface ${user.online ? 'bg-success' : 'bg-text-dim'}`;
+    document.getElementById('chatStatus')!.textContent = user.online ? 'Online' : 'Offline';
+
+    // Load messages
+    const res = await fetch(`/api/messages?with=${user._id}`);
+    const messages = await res.json();
+    renderMessages(messages);
+  }
+
+  function renderMessages(messages: any[]) {
+    const area = document.getElementById('messagesArea')!;
+    area.innerHTML = messages.map(m => {
+      const isMine = m.sender === currentUser.id || m.sender?._id === currentUser.id;
+      if (m.type === 'image' || m.type === 'gif') {
+        return `<div class="flex ${isMine ? 'justify-end' : 'justify-start'}">
+          <div class="max-w-[70%] ${isMine ? 'bg-primary/20 border-primary/30' : 'bg-elevated border-border'} border rounded-xl p-1">
+            <img src="${m.content}" class="rounded-lg max-h-64 w-auto" loading="lazy" />
+            <p class="text-[10px] text-text-dim mt-1 px-1">${new Date(m.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</p>
+          </div>
+        </div>`;
+      }
+      return `<div class="flex ${isMine ? 'justify-end' : 'justify-start'}">
+        <div class="max-w-[70%] px-4 py-2 rounded-2xl ${isMine ? 'bg-primary text-white rounded-br-md' : 'bg-elevated text-text rounded-bl-md'}">
+          <p class="text-sm break-words">${escapeHtml(m.content)}</p>
+          <p class="text-[10px] ${isMine ? 'text-white/60' : 'text-text-dim'} mt-0.5">${new Date(m.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</p>
+        </div>
+      </div>`;
+    }).join('');
+    area.scrollTop = area.scrollHeight;
+  }
+
+  function escapeHtml(str: string) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // --- Send message ---
+  document.getElementById('sendBtn')?.addEventListener('click', sendMessage);
+  document.getElementById('msgInput')?.addEventListener('keydown', (e) => {
+    if ((e as KeyboardEvent).key === 'Enter') sendMessage();
+  });
+
+  async function sendMessage() {
+    if (!activeChatUser) return;
+    const input = document.getElementById('msgInput') as HTMLInputElement;
+    const content = pendingImage || input.value.trim();
+    const type = pendingImage ? 'image' : 'text';
+    if (!content) return;
+
+    input.value = '';
+    pendingImage = null;
+    document.getElementById('imagePreview')!.classList.add('hidden');
+
+    await fetch('/api/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ receiver: activeChatUser._id, content, type })
+    });
+  }
+
+  // --- New message handler ---
+  function handleNewMessage(msg: any) {
+    if (!activeChatUser) { loadConversations(); return; }
+    const isRelevant = msg.sender === activeChatUser._id || msg.receiver === activeChatUser._id ||
+                       msg.sender === currentUser.id || msg.receiver === currentUser.id;
+    if (isRelevant && (msg.sender === activeChatUser._id || msg.sender === currentUser.id)) {
+      const area = document.getElementById('messagesArea')!;
+      const isMine = msg.sender === currentUser.id;
+      const div = document.createElement('div');
+      div.className = `flex ${isMine ? 'justify-end' : 'justify-start'}`;
+      if (msg.type === 'image' || msg.type === 'gif') {
+        div.innerHTML = `<div class="max-w-[70%] ${isMine ? 'bg-primary/20 border-primary/30' : 'bg-elevated border-border'} border rounded-xl p-1">
+          <img src="${msg.content}" class="rounded-lg max-h-64 w-auto" loading="lazy" />
+          <p class="text-[10px] text-text-dim mt-1 px-1">${new Date(msg.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</p>
+        </div>`;
+      } else {
+        div.innerHTML = `<div class="max-w-[70%] px-4 py-2 rounded-2xl ${isMine ? 'bg-primary text-white rounded-br-md' : 'bg-elevated text-text rounded-bl-md'}">
+          <p class="text-sm break-words">${escapeHtml(msg.content)}</p>
+          <p class="text-[10px] ${isMine ? 'text-white/60' : 'text-text-dim'} mt-0.5">${new Date(msg.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</p>
+        </div>`;
+      }
+      area.appendChild(div);
+      area.scrollTop = area.scrollHeight;
+    }
+    loadConversations();
+  }
+
+  // --- Typing indicator ---
+  document.getElementById('msgInput')?.addEventListener('input', () => {
+    if (!activeChatUser) return;
+    if (typingTimeout) clearTimeout(typingTimeout);
+    fetch('/api/typing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ receiver: activeChatUser._id, typing: true })
+    });
+    typingTimeout = setTimeout(() => {
+      fetch('/api/typing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ receiver: activeChatUser._id, typing: false })
+      });
+    }, 2000);
+  });
+
+  function handleTypingEvent(data: any) {
+    if (activeChatUser && data.sender === activeChatUser._id) {
+      const el = document.getElementById('typingIndicator')!;
+      if (data.typing) el.classList.remove('hidden');
+      else el.classList.add('hidden');
+    }
+  }
+
+  // --- Image upload ---
+  document.getElementById('attachBtn')?.addEventListener('click', () => {
+    document.getElementById('fileInput')!.click();
+  });
+  document.getElementById('fileInput')?.addEventListener('change', async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.url) {
+      pendingImage = data.url;
+      (document.getElementById('previewImg') as HTMLImageElement).src = data.url;
+      document.getElementById('imagePreview')!.classList.remove('hidden');
+    }
+  });
+  document.getElementById('cancelImage')?.addEventListener('click', () => {
+    pendingImage = null;
+    document.getElementById('imagePreview')!.classList.add('hidden');
+  });
+
+  // --- GIF Picker ---
+  document.getElementById('gifBtn')?.addEventListener('click', () => {
+    document.getElementById('gifPicker')!.classList.toggle('hidden');
+  });
+  let gifTimeout: ReturnType<typeof setTimeout>;
+  document.getElementById('gifSearch')?.addEventListener('input', (e) => {
+    clearTimeout(gifTimeout);
+    const q = (e.target as HTMLInputElement).value.trim();
+    gifTimeout = setTimeout(() => searchGifs(q), 500);
+  });
+  async function searchGifs(q: string) {
+    const apiKey = 'GlVGYHkr3WSBnllca54iNt0yFbjz7L65'; // Public GIPHY beta key
+    const url = q
+      ? `https://api.giphy.com/v1/gifs/search?api_key=${apiKey}&q=${encodeURIComponent(q)}&limit=12&rating=g`
+      : `https://api.giphy.com/v1/gifs/trending?api_key=${apiKey}&limit=12&rating=g`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const container = document.getElementById('gifResults')!;
+    container.innerHTML = data.data.map((g: any) =>
+      `<img src="${g.images.fixed_height_small.url}" class="w-full h-20 object-cover rounded-md cursor-pointer hover:opacity-80 transition" data-url="${g.images.original.url}" />`
+    ).join('');
+    container.querySelectorAll('img').forEach(img => {
+      img.addEventListener('click', async () => {
+        const gifUrl = (img as HTMLElement).dataset.url!;
+        document.getElementById('gifPicker')!.classList.add('hidden');
+        if (!activeChatUser) return;
+        await fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ receiver: activeChatUser._id, content: gifUrl, type: 'gif' })
+        });
+      });
+    });
+  }
+
+  // --- WebRTC Calls ---
+  let peer: any = null;
+  let localStream: MediaStream | null = null;
+
+  document.getElementById('callAudioBtn')?.addEventListener('click', () => startCall(false));
+  document.getElementById('callVideoBtn')?.addEventListener('click', () => startCall(true));
+
+  async function startCall(video: boolean) {
+    if (!activeChatUser) return;
+    const modal = document.getElementById('callModal')!;
+    const avatar = activeChatUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(activeChatUser.name)}&background=fa520f&color=fff&size=80`;
+    (document.getElementById('callAvatar') as HTMLImageElement).src = avatar;
+    document.getElementById('callStatus')!.textContent = activeChatUser.name;
+    document.getElementById('callSubtext')!.textContent = 'Calling...';
+    document.getElementById('callAcceptBtn')!.classList.add('hidden');
+    modal.classList.remove('hidden');
+
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video });
+    (document.getElementById('localVideo') as HTMLVideoElement).srcObject = localStream;
+    if (video) {
+      document.getElementById('callVideos')!.classList.remove('hidden');
+      document.getElementById('callInfo')!.classList.add('hidden');
+    }
+
+    const SimplePeer = (await import('simple-peer')).default;
+    peer = new SimplePeer({ initiator: true, stream: localStream, trickle: true });
+
+    peer.on('signal', (signal: any) => {
+      fetch('/api/call/signal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: activeChatUser._id, signal, type: 'call-offer' })
+      });
+    });
+
+    peer.on('stream', (remoteStream: MediaStream) => {
+      (document.getElementById('remoteVideo') as HTMLVideoElement).srcObject = remoteStream;
+      document.getElementById('callSubtext')!.textContent = 'Connected';
+      document.getElementById('callVideos')!.classList.remove('hidden');
+    });
+
+    peer.on('close', endCall);
+    peer.on('error', endCall);
+  }
+
+  function handleCallEvent(data: any) {
+    if (data.type === 'call-offer' && !peer) {
+      // Incoming call
+      const modal = document.getElementById('callModal')!;
+      document.getElementById('callStatus')!.textContent = 'Incoming call';
+      document.getElementById('callSubtext')!.textContent = 'from ' + (data.from || 'someone');
+      document.getElementById('callAcceptBtn')!.classList.remove('hidden');
+      modal.classList.remove('hidden');
+
+      document.getElementById('callAcceptBtn')!.onclick = async () => {
+        document.getElementById('callAcceptBtn')!.classList.add('hidden');
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        (document.getElementById('localVideo') as HTMLVideoElement).srcObject = localStream;
+        document.getElementById('callVideos')!.classList.remove('hidden');
+        document.getElementById('callInfo')!.classList.add('hidden');
+
+        const SimplePeer = (await import('simple-peer')).default;
+        peer = new SimplePeer({ initiator: false, stream: localStream, trickle: true });
+
+        peer.on('signal', (signal: any) => {
+          fetch('/api/call/signal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target: data.from, signal, type: 'call-answer' })
+          });
+        });
+        peer.on('stream', (remoteStream: MediaStream) => {
+          (document.getElementById('remoteVideo') as HTMLVideoElement).srcObject = remoteStream;
+        });
+        peer.on('close', endCall);
+        peer.on('error', endCall);
+
+        if (data.signal) peer.signal(data.signal);
+      };
+    } else if (data.type === 'call-answer' && peer) {
+      if (data.signal) peer.signal(data.signal);
+    } else if (data.type === 'signal' && peer) {
+      if (data.signal) peer.signal(data.signal);
+    } else if (data.type === 'call-end') {
+      endCall();
+    }
+  }
+
+  document.getElementById('callEndBtn')?.addEventListener('click', () => {
+    if (activeChatUser) {
+      fetch('/api/call/signal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: activeChatUser._id, type: 'call-end' })
+      });
+    }
+    endCall();
+  });
+
+  function endCall() {
+    peer?.destroy();
+    peer = null;
+    localStream?.getTracks().forEach(t => t.stop());
+    localStream = null;
+    document.getElementById('callModal')!.classList.add('hidden');
+    document.getElementById('callVideos')!.classList.add('hidden');
+    document.getElementById('callInfo')!.classList.remove('hidden');
+  }
+</script>

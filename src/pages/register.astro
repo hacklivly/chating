@@ -1,0 +1,73 @@
+---
+import Layout from '../layouts/Layout.astro';
+export const prerender = false;
+---
+<Layout title="Register - ChatApp">
+  <div class="min-h-dvh flex items-center justify-center p-4 bg-bg">
+    <div class="w-full max-w-sm">
+      <div class="text-center mb-8">
+        <h1 class="text-3xl font-bold text-text mb-2">Create account</h1>
+        <p class="text-text-muted text-sm">Join and start chatting instantly</p>
+      </div>
+
+      <div class="bg-surface rounded-xl p-6 border border-border">
+        <form id="registerForm" class="space-y-4">
+          <div>
+            <label for="name" class="block text-sm font-medium text-text-muted mb-1.5">Name</label>
+            <input type="text" id="name" name="name" required
+              class="w-full h-11 px-3 bg-elevated border border-border-strong rounded-lg text-text placeholder-text-dim focus:outline-none focus:border-primary transition"
+              placeholder="Your name" />
+          </div>
+          <div>
+            <label for="email" class="block text-sm font-medium text-text-muted mb-1.5">Email</label>
+            <input type="email" id="email" name="email" required
+              class="w-full h-11 px-3 bg-elevated border border-border-strong rounded-lg text-text placeholder-text-dim focus:outline-none focus:border-primary transition"
+              placeholder="you@example.com" />
+          </div>
+          <div>
+            <label for="password" class="block text-sm font-medium text-text-muted mb-1.5">Password</label>
+            <input type="password" id="password" name="password" required minlength="6"
+              class="w-full h-11 px-3 bg-elevated border border-border-strong rounded-lg text-text placeholder-text-dim focus:outline-none focus:border-primary transition"
+              placeholder="Min 6 characters" />
+          </div>
+          <div id="error" class="text-danger text-sm hidden"></div>
+          <button type="submit"
+            class="w-full h-11 bg-primary text-white font-medium rounded-lg hover:bg-primary-deep transition cursor-pointer">
+            Create account
+          </button>
+        </form>
+      </div>
+
+      <p class="text-center text-text-muted text-sm mt-4">
+        Already have an account? <a href="/login" class="text-primary hover:underline">Sign in</a>
+      </p>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  document.getElementById('registerForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const errorEl = document.getElementById('error')!;
+    errorEl.classList.add('hidden');
+
+    const name = (form.querySelector('#name') as HTMLInputElement).value;
+    const email = (form.querySelector('#email') as HTMLInputElement).value;
+    const password = (form.querySelector('#password') as HTMLInputElement).value;
+
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = data.error;
+      errorEl.classList.remove('hidden');
+    } else {
+      window.location.href = '/chat';
+    }
+  });
+</script>

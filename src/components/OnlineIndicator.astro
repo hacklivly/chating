@@ -1,0 +1,6 @@
+---
+interface Props { online: boolean; size?: 'sm' | 'md' }
+const { online, size = 'sm' } = Astro.props;
+const px = size === 'sm' ? 'w-2.5 h-2.5' : 'w-3.5 h-3.5';
+---
+<span class:list={[px, 'rounded-full border-2 border-card inline-block', online ? 'bg-online' : 'bg-disabled']}></span>

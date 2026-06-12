@@ -1,0 +1,124 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getUserIdFromCookies } from '../lib/auth';
+import { connectDB } from '../lib/db';
+import { User } from '../models/User';
+export const prerender = false;
+
+const userId = getUserIdFromCookies(Astro.cookies);
+if (!userId) return Astro.redirect('/login');
+
+await connectDB();
+const user = await User.findById(userId).select('-password').lean() as any;
+if (!user) return Astro.redirect('/login');
+---
+<Layout title="Profile - ChatApp">
+  <div class="min-h-dvh bg-bg">
+    <!-- Top bar -->
+    <header class="h-14 bg-surface border-b border-border flex items-center px-4 sticky top-0 z-10">
+      <a href="/chat" class="text-text-muted hover:text-text transition mr-4">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+      </a>
+      <h1 class="text-lg font-semibold text-text">Profile</h1>
+    </header>
+
+    <div class="max-w-md mx-auto p-6">
+      <!-- Avatar -->
+      <div class="flex flex-col items-center mb-8">
+        <div class="relative group">
+          <img id="avatarPreview"
+            src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=fa520f&color=fff&size=128`}
+            alt="Avatar"
+            class="w-24 h-24 rounded-full object-cover border-2 border-border" />
+          <label class="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3"/></svg>
+            <input type="file" id="avatarInput" accept="image/*" class="hidden" />
+          </label>
+        </div>
+        <p id="uploadStatus" class="text-xs text-text-muted mt-2 hidden">Uploading...</p>
+      </div>
+
+      <!-- Info form -->
+      <div class="bg-surface rounded-xl p-6 border border-border">
+        <form id="profileForm" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-text-muted mb-1.5">Name</label>
+            <input type="text" id="nameInput" value={user.name}
+              class="w-full h-11 px-3 bg-elevated border border-border-strong rounded-lg text-text focus:outline-none focus:border-primary transition" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-text-muted mb-1.5">Email</label>
+            <input type="email" value={user.email} disabled
+              class="w-full h-11 px-3 bg-elevated border border-border-strong rounded-lg text-text-dim cursor-not-allowed" />
+          </div>
+          <div id="profileMsg" class="text-sm hidden"></div>
+          <button type="submit"
+            class="w-full h-11 bg-primary text-white font-medium rounded-lg hover:bg-primary-deep transition cursor-pointer">
+            Save changes
+          </button>
+        </form>
+      </div>
+
+      <!-- Logout -->
+      <button id="logoutBtn"
+        class="w-full mt-4 h-11 bg-elevated border border-border-strong text-danger font-medium rounded-lg hover:bg-danger hover:text-white hover:border-danger transition cursor-pointer">
+        Sign out
+      </button>
+    </div>
+  </div>
+</Layout>
+
+<script define:vars={{ userId: user._id.toString() }} is:inline>
+  // Avatar upload
+  document.getElementById('avatarInput')?.addEventListener('change', async function(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const status = document.getElementById('uploadStatus');
+    status.textContent = 'Uploading...';
+    status.classList.remove('hidden');
+
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.url) {
+      document.getElementById('avatarPreview').src = data.url;
+      await fetch(`/api/users/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatar: data.url })
+      });
+      status.textContent = 'Updated!';
+    } else {
+      status.textContent = 'Upload failed';
+    }
+    setTimeout(() => status.classList.add('hidden'), 2000);
+  });
+
+  // Profile save
+  document.getElementById('profileForm')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const name = document.getElementById('nameInput').value;
+    const msg = document.getElementById('profileMsg');
+    const res = await fetch(`/api/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    if (res.ok) {
+      msg.textContent = 'Saved!';
+      msg.className = 'text-sm text-success';
+    } else {
+      msg.textContent = 'Failed to save';
+      msg.className = 'text-sm text-danger';
+    }
+    msg.classList.remove('hidden');
+    setTimeout(() => msg.classList.add('hidden'), 2000);
+  });
+
+  // Logout
+  document.getElementById('logoutBtn')?.addEventListener('click', async function() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+  });
+</script>
