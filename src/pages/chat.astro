@@ -193,26 +193,25 @@ if (!currentUser) return Astro.redirect('/login');
 
   // --- Load conversations ---
   async function loadConversations() {
-    const res = await fetch('/api/conversations');
-    const convs = await res.json();
+    // Load all users publicly so everyone can see who's registered
+    const res = await fetch('/api/users/search?q=');
+    const users = await res.json();
     const container = document.getElementById('conversations')!;
     const emptyState = document.getElementById('emptyState')!;
 
-    if (convs.length === 0) { emptyState.classList.remove('hidden'); return; }
+    if (!users.length) { emptyState.classList.remove('hidden'); return; }
     emptyState.classList.add('hidden');
 
-    container.innerHTML = convs.map((c: any) => {
-      const other = c.participants.find((p: any) => p._id !== currentUser.id);
-      if (!other) return '';
+    container.innerHTML = users.map((other: any) => {
       const avatar = other.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(other.name)}&background=fa520f&color=fff&size=40`;
-      return `<button class="w-full flex items-center gap-3 p-3 hover:bg-elevated transition text-left" data-user='${JSON.stringify(other)}'>
+      return `<button class="w-full flex items-center gap-3 p-3 hover:bg-elevated transition text-left" data-user='${JSON.stringify(other).replace(/'/g, "&#39;")}'>
         <div class="relative shrink-0">
           <img src="${avatar}" class="w-10 h-10 rounded-full object-cover" />
           <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-surface ${other.online ? 'bg-success' : 'bg-text-dim'}"></span>
         </div>
         <div class="min-w-0 flex-1">
           <p class="text-sm font-medium text-text truncate">${other.name}</p>
-          <p class="text-xs text-text-dim truncate">${c.lastMessage || 'Start a conversation'}</p>
+          <p class="text-xs text-text-dim truncate">${other.online ? '🟢 Online' : 'Offline'}</p>
         </div>
       </button>`;
     }).join('');
